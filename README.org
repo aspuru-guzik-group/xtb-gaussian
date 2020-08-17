@@ -1,0 +1,61 @@
+* An xtb wrapper for Gaussian
+This is a wrapper that allows xtb to be used as part of Gaussian. This is
+useful in particular for TS optimizations that xtb doesn't otherwise do, and
+that Gaussian does very well.
+
+As xtb already has most of the functionality built-in, we mostly just leverage
+that. The only improvement really is the use of some perl scripting to
+transform xtb Hessians to Gaussian Hessians, which xtb doesn't do on it's own.
+The short script is in ~xtb-gaussian~.
+
+** Usage
+The files ~examples/optimize.com~ and ~example/QST2.com~ provide examples of usage
+(the optimization of a water molecule and finding an SN2 transition state and
+reaction path using quasi-Newton synchronous transit). In short, the Gaussian
+input file should have a method line like this one,
+#+BEGIN_SRC text
+%chk=ts
+# external="xtb-gaussian -P 12 --etemp 300.0"
+  opt=(calcfc,ts,noeigentest,nodownhill,nomicro)
+#+END_SRC
+Here, we set the number of threads for xtb to 12 (~-P 12~ above) and perform a
+transition state search using an initial xtb Hessian and xtb gradient
+calculations. Additional arguments to xtb can be passed in the external
+variable (like ~--etemp 300.0~ above). Passing ~--log-all~ as the first argument
+to ~xtb-gaussian~ will mix in the (often very long) xtb output with the Gaussian
+output, which is not done by default for performance and easier parsing of
+Gaussian log files.
+
+Note that the molecular charge included in the Gaussian molecule deck is
+automatically used the wrapper script. *However, that is not true of the
+multiplicity!* The script will warn of non-singlet multiplicity, which you can
+technically treat by passing the appropriate ~--uhf~ argument to xtb in the
+external string (caveat emptor).
+
+** Installation
+Installation consists solely of putting ~xtb-gaussian~ and ~xtb~ both on $PATH so
+that they are visible to Gaussian. The only dependency is Perl. This code was
+tested against ~xtb 6.2.3~ and ~xtb 6.3.1rc1~ binaries on linux.
+
+** Performance
+There are some things to keep in mind to ensure the best possible performance,
+mostly because of Gaussian is a bit old-school.
+
+Firstly, passing %CPU to gaussian makes xtb use 1 thread. *So don't do it!*
+Furthermore, %NProcShared= will make Gaussian wait busily for xtb using a full
+half of the NProcShared cores while xtb is running, but use all the cores for
+it's own routines (like Hessian diagonalization). It is best to give only 1 or
+2 processes to Gaussian and the rest to xtb using ~-P~ as above if Hessians are
+often computed (with xtb parallelization) or the system is large. Otherwise,
+allocating some threads to Gaussian can make the code faster.
+
+Secondly, performance is very IO centric as Gaussian and xtb keep writing and
+reading files over and over again. The wrapper respects the Gaussian scratch
+directory. Running with ~$GAUSS_SCRDIR~ pointing at a fast filesystem (such as
+~/dev/shm/~ on linux) makes a huge difference.
+
+* Contributors
+I wrote this perl version based on a Python script developed by postdoctoral
+fellows [[https://github.com/kjelljorner][Kjell Jorner]] (at AstraZeneca, UK) and [[https://github.com/gabegomes][Gabriel dos Passos Gomes]]
+(University of Toronto, Canada).
+
